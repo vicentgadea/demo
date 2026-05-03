@@ -2,7 +2,8 @@
 FastAPI — Punto de entrada de la API de análisis.
 
 Endpoints:
-  POST /analyze          — análisis completo
+  POST /analyze          — análisis completo (single ticker)
+  POST /scanner/scan     — scanner multi-ticker (Market → Sector → Value)
   GET  /company/{ticker} — info básica de empresa
   GET  /health           — health check
 """
@@ -16,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .models.inputs import AnalysisRequest
 from .models.outputs import AnalysisResponse, CompanyInfo
+from .models.scanner_models import ScannerRequest, ScannerResponse
 from .providers import get_provider
 from .analysis import (
     analyze_fundamental,
@@ -25,6 +27,7 @@ from .analysis import (
     analyze_risk,
     analyze_synthesis,
 )
+from .analysis.scanner_orchestrator import run_scanner
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 settings = get_settings()
@@ -187,3 +190,32 @@ def get_company_info(ticker: str) -> CompanyInfo:
         )
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"No se encontró información para '{ticker}': {e}")
+
+
+# ── Scanner multi-ticker ──────────────────────────────────────────────────────
+@app.post("/scanner/scan", response_model=ScannerResponse, tags=["Scanner"])
+def scanner_scan(request: ScannerRequest) -> ScannerResponse:
+    """
+    Scanner multi-ticker siguiendo la metodología Market → Sector → Value
+    de TuForoDeBolsa. Analiza hasta 50 tickers en paralelo y devuelve
+    señales de entrada con puntuación técnica + fundamental combinada.
+    """
+    try:
+        # Normalise ticker list
+        request.tickers = [t.strip().upper() for t in request.tickers if t.strip()]
+        if not request.tickers:
+            raise HTTPException(status_code=422, detail="La lista de tickers está vacía.")
+
+        logger.info(
+            f"Scanner request: {len(request.tickers)} tickers | "
+            f"portfolio={request.portfolio_type} | ichimoku={request.enable_ichimoku}"
+        )
+        return run_scanner(request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Scanner error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en el scanner: {str(e)}",
+        )

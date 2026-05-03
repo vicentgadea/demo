@@ -37,6 +37,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Navigation hint to scanner ────────────────────────────────────────────────
+# (Streamlit multi-page: Scanner is at pages/1_Scanner.py)
+
+
 # ── CSS personalizado ─────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -54,6 +58,7 @@ st.markdown("""
 with st.sidebar:
     st.title("📊 Stock Analyzer")
     st.caption("Herramienta de análisis de empresas cotizadas")
+    st.page_link("pages/1_Scanner.py", label="📡 Scanner Multi-Ticker", icon="📡")
     st.divider()
 
     ticker_input = st.text_input(
